@@ -12,12 +12,16 @@ export const cleanSupabaseUrl = (raw: string): string => {
   return url;
 };
 
+const DEFAULT_SUPABASE_URL = 'https://tpfamcctodoznkfbxezo.supabase.co';
+const DEFAULT_SUPABASE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwZmFtY2N0b2Rvem5rZmJ4ZXpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc0MTU1NDQsImV4cCI6MjEwMjk5MTU0NH0.OID4KnA6CkkTXDHMIh3xTtfTxIg9qULjnvH4FNRybdE';
+
 export const getSupabaseUrl = (): string => {
   if (typeof window !== 'undefined') {
     const local = localStorage.getItem(STORAGE_URL_KEY);
     if (local && local.trim().startsWith('https://')) return cleanSupabaseUrl(local);
   }
-  return cleanSupabaseUrl(import.meta.env.VITE_SUPABASE_URL || '');
+  return cleanSupabaseUrl(import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL);
 };
 
 export const getSupabaseAnonKey = (): string => {
@@ -25,7 +29,7 @@ export const getSupabaseAnonKey = (): string => {
     const local = localStorage.getItem(STORAGE_KEY_KEY);
     if (local && local.trim().length > 20) return local.trim();
   }
-  return import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  return import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
 };
 
 export const isSupabaseConfigured = (): boolean => {
