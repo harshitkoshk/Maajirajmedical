@@ -4,12 +4,20 @@ import { Product, Order, ShopSettings } from '../types';
 const STORAGE_URL_KEY = 'mrmc_supabase_url';
 const STORAGE_KEY_KEY = 'mrmc_supabase_anon_key';
 
+export const cleanSupabaseUrl = (raw: string): string => {
+  let url = (raw || '').trim();
+  if (url.endsWith('/rest/v1/')) url = url.replace(/\/rest\/v1\/$/, '');
+  if (url.endsWith('/rest/v1')) url = url.replace(/\/rest\/v1$/, '');
+  if (url.endsWith('/')) url = url.slice(0, -1);
+  return url;
+};
+
 export const getSupabaseUrl = (): string => {
   if (typeof window !== 'undefined') {
     const local = localStorage.getItem(STORAGE_URL_KEY);
-    if (local && local.trim().startsWith('https://')) return local.trim();
+    if (local && local.trim().startsWith('https://')) return cleanSupabaseUrl(local);
   }
-  return import.meta.env.VITE_SUPABASE_URL || '';
+  return cleanSupabaseUrl(import.meta.env.VITE_SUPABASE_URL || '');
 };
 
 export const getSupabaseAnonKey = (): string => {
