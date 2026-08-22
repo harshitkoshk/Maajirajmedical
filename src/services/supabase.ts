@@ -6,6 +6,13 @@ const STORAGE_KEY_KEY = 'mrmc_supabase_anon_key';
 
 export const cleanSupabaseUrl = (raw: string): string => {
   let url = (raw || '').trim();
+
+  // If user pasted dashboard browser URL: https://supabase.com/dashboard/project/tpfamcctodoznkfbxezo...
+  const dashboardMatch = url.match(/supabase\.com\/dashboard\/project\/([a-zA-Z0-9]+)/i);
+  if (dashboardMatch && dashboardMatch[1]) {
+    return `https://${dashboardMatch[1]}.supabase.co`;
+  }
+
   if (url.endsWith('/rest/v1/')) url = url.replace(/\/rest\/v1\/$/, '');
   if (url.endsWith('/rest/v1')) url = url.replace(/\/rest\/v1$/, '');
   if (url.endsWith('/')) url = url.slice(0, -1);
@@ -56,8 +63,9 @@ export const getSupabaseClient = (): SupabaseClient | null => {
 
 export const setCustomSupabaseConfig = (url: string, key: string): void => {
   if (typeof window !== 'undefined') {
-    if (url.trim()) {
-      localStorage.setItem(STORAGE_URL_KEY, url.trim());
+    const cleaned = cleanSupabaseUrl(url);
+    if (cleaned) {
+      localStorage.setItem(STORAGE_URL_KEY, cleaned);
     } else {
       localStorage.removeItem(STORAGE_URL_KEY);
     }
