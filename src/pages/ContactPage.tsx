@@ -168,7 +168,7 @@ export const ContactPage: React.FC = () => {
                   </h3>
                 </div>
                 <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  Origin: 24.5428° N, 73.6912° E
+                  Origin: {settings.originLat}° N, {settings.originLng}° E
                 </span>
               </div>
 
@@ -181,12 +181,12 @@ export const ContactPage: React.FC = () => {
                   loading="lazy"
                   allowFullScreen
                   className="border-0"
-                  src="https://maps.google.com/maps?q=Sector%2014,%20Govardhan%20Vilas,%20Udaipur,%20Rajasthan&t=&z=15&ie=UTF8&iwloc=&output=embed"
+                  src={`https://maps.google.com/maps?q=${settings.originLat && settings.originLng ? `${settings.originLat},${settings.originLng}` : encodeURIComponent(settings.address || 'Sector 14 Govardhan Vilas Udaipur')}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
                 />
                 
                 {/* Floating Map Overlay Button */}
                 <a
-                  href={settings.googleMapsUrl}
+                  href={settings.googleMapsUrl || `https://maps.google.com/?q=${encodeURIComponent(settings.address)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="absolute bottom-3 right-3 bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-1.5 backdrop-blur-xs transition-transform group-hover:scale-105"
