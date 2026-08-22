@@ -89,6 +89,7 @@ export interface ShopSettings {
   emergencyNotice: string;
   adminPin: string;
   googleMapsUrl: string;
+  mapEmbedUrl?: string;
 }
 
 export type FilterState = {

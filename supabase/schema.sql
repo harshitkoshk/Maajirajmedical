@@ -71,13 +71,13 @@ CREATE TABLE IF NOT EXISTS public.shop_settings (
     phone TEXT NOT NULL DEFAULT '7737116439',
     whatsapp_number TEXT NOT NULL DEFAULT '917737116439',
     address TEXT NOT NULL DEFAULT 'ADD. 81, S-2, 100 FEET ROAD NEAR KALAJI BHAVJI, SECTOR-14, GOVARDHAN VILAS, UDAIPUR',
-    origin_lat NUMERIC(10, 6) NOT NULL DEFAULT 24.5428,
-    origin_lng NUMERIC(10, 6) NOT NULL DEFAULT 73.6912,
+    origin_lat NUMERIC(10, 6) NOT NULL DEFAULT 24.535501,
+    origin_lng NUMERIC(10, 6) NOT NULL DEFAULT 73.692611,
     delivery_radius_km NUMERIC(5, 2) NOT NULL DEFAULT 15.0,
     opening_hours TEXT NOT NULL DEFAULT 'Mon – Sat: 8:00 AM – 10:30 PM | Sun: 9:00 AM – 9:00 PM',
     emergency_notice TEXT,
     admin_pin TEXT NOT NULL DEFAULT '1234',
-    google_maps_url TEXT,
+    google_maps_url TEXT DEFAULT 'https://maps.google.com/?q=24.535501,73.692611',
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -127,12 +127,12 @@ VALUES (
     '7737116439',
     '917737116439',
     'ADD. 81, S-2, 100 FEET ROAD NEAR KALAJI BHAVJI, SECTOR-14, GOVARDHAN VILAS, UDAIPUR',
-    24.5428,
-    73.6912,
+    24.535501,
+    73.692611,
     15.0,
     'Mon – Sat: 8:00 AM – 10:30 PM | Sun: 9:00 AM – 9:00 PM',
     '1234',
-    'https://maps.google.com/?q=81+S-2+100+Feet+Road+Sector+14+Govardhan+Vilas+Udaipur'
+    'https://maps.google.com/?q=24.535501,73.692611'
 )
 ON CONFLICT (id) DO NOTHING;
 

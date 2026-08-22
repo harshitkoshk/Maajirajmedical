@@ -26,13 +26,15 @@ export const DEFAULT_SETTINGS: ShopSettings = {
   phone: '7737116439',
   whatsappNumber: '917737116439',
   address: 'ADD. 81, S-2, 100 FEET ROAD NEAR KALAJI BHAVJI, SECTOR-14, GOVARDHAN VILAS, UDAIPUR',
-  originLat: 24.5428,
-  originLng: 73.6912,
+  originLat: 24.535501,
+  originLng: 73.692611,
   deliveryRadiusKm: 15,
   openingHours: 'Mon – Sat: 8:00 AM – 10:30 PM | Sun: 9:00 AM – 9:00 PM',
   emergencyNotice: 'For urgent medicine availability and emergency assistance, call 7737116439 immediately.',
   adminPin: '1234',
-  googleMapsUrl: 'https://maps.google.com/?q=81+S-2+100+Feet+Road+Sector+14+Govardhan+Vilas+Udaipur'
+  googleMapsUrl: 'https://maps.google.com/?q=24.535501,73.692611',
+  mapEmbedUrl:
+    'https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d3629.55427806364!2d73.69004207418352!3d24.535500978142853!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zMjTCsDMyJzA3LjgiTiA3M8KwNDEnMzMuNCJF!5e0!3m2!1sen!2sin!4v1787426249501!5m2!1sen!2sin'
 };
 
 // Event bus for live synchronization across components and tabs

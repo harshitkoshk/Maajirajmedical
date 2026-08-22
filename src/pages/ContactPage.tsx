@@ -181,7 +181,10 @@ export const ContactPage: React.FC = () => {
                   loading="lazy"
                   allowFullScreen
                   className="border-0"
-                  src={`https://maps.google.com/maps?q=${settings.originLat && settings.originLng ? `${settings.originLat},${settings.originLng}` : encodeURIComponent(settings.address || 'Sector 14 Govardhan Vilas Udaipur')}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                  src={
+                    settings.mapEmbedUrl ||
+                    `https://maps.google.com/maps?q=${settings.originLat && settings.originLng ? `${settings.originLat},${settings.originLng}` : encodeURIComponent(settings.address || 'Sector 14 Govardhan Vilas Udaipur')}&t=&z=16&ie=UTF8&iwloc=&output=embed`
+                  }
                 />
                 
                 {/* Floating Map Overlay Button */}
