@@ -1,6 +1,7 @@
 -- ====================================================================
 -- MAAJI RAJ MEDICAL AND COSMETICS - SUPABASE DATABASE SCHEMA
 -- Sector-14, Govardhan Vilas, Udaipur
+-- Safe Idempotent Execution Script
 -- ====================================================================
 
 -- 1. EXTENSIONS
@@ -86,21 +87,35 @@ ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shop_settings ENABLE ROW LEVEL SECURITY;
 
--- Products: Allow public reads, full management for anon/authenticated
+-- Products Policies (Drop existing then recreate)
+DROP POLICY IF EXISTS "Public Read Products" ON public.products;
 CREATE POLICY "Public Read Products" ON public.products FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow Insert/Update Products" ON public.products;
 CREATE POLICY "Allow Insert/Update Products" ON public.products FOR ALL USING (true) WITH CHECK (true);
 
--- Categories: Allow public reads
+-- Categories Policies
+DROP POLICY IF EXISTS "Public Read Categories" ON public.categories;
 CREATE POLICY "Public Read Categories" ON public.categories FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow Modify Categories" ON public.categories;
 CREATE POLICY "Allow Modify Categories" ON public.categories FOR ALL USING (true) WITH CHECK (true);
 
--- Orders: Allow public order creation & updates
+-- Orders Policies
+DROP POLICY IF EXISTS "Public Insert Orders" ON public.orders;
 CREATE POLICY "Public Insert Orders" ON public.orders FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Read Orders" ON public.orders;
 CREATE POLICY "Public Read Orders" ON public.orders FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public Update Orders" ON public.orders;
 CREATE POLICY "Public Update Orders" ON public.orders FOR UPDATE USING (true) WITH CHECK (true);
 
--- Shop Settings: Public read & update
+-- Shop Settings Policies
+DROP POLICY IF EXISTS "Public Read Settings" ON public.shop_settings;
 CREATE POLICY "Public Read Settings" ON public.shop_settings FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public Update Settings" ON public.shop_settings;
 CREATE POLICY "Public Update Settings" ON public.shop_settings FOR ALL USING (true) WITH CHECK (true);
 
 -- 7. INITIAL SHOP SETTINGS INSERT
