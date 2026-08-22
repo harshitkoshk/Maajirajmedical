@@ -1,26 +1,89 @@
-import { createClient } from '@supabase/supabase-js';
-import { Product, Order, ShopSettings, Category } from '../types';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Product, Order, ShopSettings } from '../types';
 
-// Read environment variables or fallback
-const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL ||
-  (typeof window !== 'undefined' && (window as any).__SUPABASE_URL__) ||
-  '';
-const supabaseAnonKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  (typeof window !== 'undefined' && (window as any).__SUPABASE_KEY__) ||
-  '';
+const STORAGE_URL_KEY = 'mrmc_supabase_url';
+const STORAGE_KEY_KEY = 'mrmc_supabase_anon_key';
 
-export const isSupabaseConfigured = (): boolean => {
-  return Boolean(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('https://'));
+export const getSupabaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem(STORAGE_URL_KEY);
+    if (local && local.trim().startsWith('https://')) return local.trim();
+  }
+  return import.meta.env.VITE_SUPABASE_URL || '';
 };
 
-export const supabase = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey, {
+export const getSupabaseAnonKey = (): string => {
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem(STORAGE_KEY_KEY);
+    if (local && local.trim().length > 20) return local.trim();
+  }
+  return import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+};
+
+export const isSupabaseConfigured = (): boolean => {
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+  return Boolean(url && key && url.startsWith('https://') && key.length > 20);
+};
+
+let clientInstance: SupabaseClient | null = null;
+
+export const getSupabaseClient = (): SupabaseClient | null => {
+  if (!isSupabaseConfigured()) return null;
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+
+  if (!clientInstance) {
+    clientInstance = createClient(url, key, {
       auth: { persistSession: true },
       realtime: { params: { eventsPerSecond: 10 } }
-    })
-  : null;
+    });
+  }
+  return clientInstance;
+};
+
+export const setCustomSupabaseConfig = (url: string, key: string): void => {
+  if (typeof window !== 'undefined') {
+    if (url.trim()) {
+      localStorage.setItem(STORAGE_URL_KEY, url.trim());
+    } else {
+      localStorage.removeItem(STORAGE_URL_KEY);
+    }
+    if (key.trim()) {
+      localStorage.setItem(STORAGE_KEY_KEY, key.trim());
+    } else {
+      localStorage.removeItem(STORAGE_KEY_KEY);
+    }
+    clientInstance = null; // reset client instance
+    window.dispatchEvent(new CustomEvent('mrmc_storage_updated', { detail: { event: 'supabase_config' } }));
+  }
+};
+
+export const testSupabaseConnection = async (): Promise<{ success: boolean; message: string }> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return {
+      success: false,
+      message: 'Supabase URL or Anon Key is missing or invalid format.'
+    };
+  }
+
+  try {
+    const { data, error } = await client.from('products').select('id').limit(1);
+    if (error) throw error;
+    return {
+      success: true,
+      message: 'Successfully connected to Supabase cloud database!'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Failed to connect. Ensure SQL schema is executed in Supabase.'
+    };
+  }
+};
+
+export const supabase = getSupabaseClient();
 
 // ==========================================
 // SUPABASE CLOUD API METHODS
@@ -28,9 +91,10 @@ export const supabase = isSupabaseConfigured()
 
 // 1. PRODUCTS
 export const fetchProductsSupabase = async (): Promise<Product[] | null> => {
-  if (!supabase) return null;
+  const client = getSupabaseClient();
+  if (!client) return null;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('products')
       .select('*')
       .order('created_at', { ascending: false });
@@ -67,7 +131,8 @@ export const fetchProductsSupabase = async (): Promise<Product[] | null> => {
 };
 
 export const upsertProductSupabase = async (product: Product): Promise<boolean> => {
-  if (!supabase) return false;
+  const client = getSupabaseClient();
+  if (!client) return false;
   try {
     const row = {
       id: product.id,
@@ -91,7 +156,7 @@ export const upsertProductSupabase = async (product: Product): Promise<boolean> 
       updated_at: new Date().toISOString()
     };
 
-    const { error } = await supabase.from('products').upsert(row);
+    const { error } = await client.from('products').upsert(row);
     if (error) throw error;
     return true;
   } catch (err) {
@@ -101,9 +166,10 @@ export const upsertProductSupabase = async (product: Product): Promise<boolean> 
 };
 
 export const deleteProductSupabase = async (productId: string): Promise<boolean> => {
-  if (!supabase) return false;
+  const client = getSupabaseClient();
+  if (!client) return false;
   try {
-    const { error } = await supabase.from('products').delete().eq('id', productId);
+    const { error } = await client.from('products').delete().eq('id', productId);
     if (error) throw error;
     return true;
   } catch (err) {
@@ -114,9 +180,10 @@ export const deleteProductSupabase = async (productId: string): Promise<boolean>
 
 // 2. ORDERS
 export const fetchOrdersSupabase = async (): Promise<Order[] | null> => {
-  if (!supabase) return null;
+  const client = getSupabaseClient();
+  if (!client) return null;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false });
@@ -148,7 +215,8 @@ export const fetchOrdersSupabase = async (): Promise<Order[] | null> => {
 };
 
 export const insertOrderSupabase = async (order: Order): Promise<boolean> => {
-  if (!supabase) return false;
+  const client = getSupabaseClient();
+  if (!client) return false;
   try {
     const row = {
       id: order.id,
@@ -167,7 +235,7 @@ export const insertOrderSupabase = async (order: Order): Promise<boolean> => {
       created_at: order.createdAt
     };
 
-    const { error } = await supabase.from('orders').insert(row);
+    const { error } = await client.from('orders').insert(row);
     if (error) throw error;
     return true;
   } catch (err) {
@@ -177,9 +245,10 @@ export const insertOrderSupabase = async (order: Order): Promise<boolean> => {
 };
 
 export const updateOrderStatusSupabase = async (orderId: string, status: string): Promise<boolean> => {
-  if (!supabase) return false;
+  const client = getSupabaseClient();
+  if (!client) return false;
   try {
-    const { error } = await supabase
+    const { error } = await client
       .from('orders')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', orderId);
@@ -194,9 +263,10 @@ export const updateOrderStatusSupabase = async (orderId: string, status: string)
 
 // 3. SETTINGS
 export const fetchSettingsSupabase = async (): Promise<ShopSettings | null> => {
-  if (!supabase) return null;
+  const client = getSupabaseClient();
+  if (!client) return null;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('shop_settings')
       .select('*')
       .eq('id', 'primary')
@@ -226,7 +296,8 @@ export const fetchSettingsSupabase = async (): Promise<ShopSettings | null> => {
 };
 
 export const saveSettingsSupabase = async (settings: ShopSettings): Promise<boolean> => {
-  if (!supabase) return false;
+  const client = getSupabaseClient();
+  if (!client) return false;
   try {
     const row = {
       id: 'primary',
@@ -245,7 +316,7 @@ export const saveSettingsSupabase = async (settings: ShopSettings): Promise<bool
       updated_at: new Date().toISOString()
     };
 
-    const { error } = await supabase.from('shop_settings').upsert(row);
+    const { error } = await client.from('shop_settings').upsert(row);
     if (error) throw error;
     return true;
   } catch (err) {

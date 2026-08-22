@@ -27,8 +27,21 @@ import {
   Save,
   RotateCcw,
   Sparkles,
-  ArrowUpRight
+  ArrowUpRight,
+  Database,
+  Cloud,
+  RefreshCw,
+  Loader2,
+  Check
 } from 'lucide-react';
+import {
+  getSupabaseUrl,
+  getSupabaseAnonKey,
+  setCustomSupabaseConfig,
+  testSupabaseConnection,
+  isSupabaseConfigured,
+  upsertProductSupabase
+} from '../../services/supabase';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -67,6 +80,14 @@ export const AdminDashboard: React.FC = () => {
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<ShopSettings>({ ...settings });
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  // Cloud Database state
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState<string>(getSupabaseUrl);
+  const [supabaseKeyInput, setSupabaseKeyInput] = useState<string>(getSupabaseAnonKey);
+  const [testingDb, setTestingDb] = useState(false);
+  const [dbTestResult, setDbTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncAllMsg, setSyncAllMsg] = useState<string | null>(null);
 
   // Analytics
   const totalProducts = products.length;
@@ -108,6 +129,36 @@ export const AdminDashboard: React.FC = () => {
     updateShopSettings(settingsForm);
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2500);
+  };
+
+  const handleTestAndSaveDb = async () => {
+    setTestingDb(true);
+    setDbTestResult(null);
+    setCustomSupabaseConfig(supabaseUrlInput, supabaseKeyInput);
+    const result = await testSupabaseConnection();
+    setDbTestResult(result);
+    setTestingDb(false);
+  };
+
+  const handlePushLocalCatalogToCloud = async () => {
+    if (!isSupabaseConfigured()) {
+      alert('Please configure your Supabase URL & Key first and test connection!');
+      return;
+    }
+    setSyncingAll(true);
+    setSyncAllMsg('Syncing all store products to Supabase cloud...');
+    try {
+      let count = 0;
+      for (const p of products) {
+        await upsertProductSupabase(p);
+        count++;
+      }
+      setSyncAllMsg(`Successfully synced ${count} products to your Supabase cloud database!`);
+    } catch (err: any) {
+      setSyncAllMsg(`Error syncing: ${err.message}`);
+    }
+    setSyncingAll(false);
+    setTimeout(() => setSyncAllMsg(null), 5000);
   };
 
   // Filtered Products
@@ -981,6 +1032,102 @@ export const AdminDashboard: React.FC = () => {
                     }
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
                   />
+                </div>
+              </div>
+
+              {/* Cloud Database (Supabase) Card */}
+              <div className="mt-6 pt-6 border-t border-slate-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-emerald-600" />
+                    <h4 className="font-heading font-bold text-xs text-slate-900 uppercase tracking-wider">
+                      Cloud Database (Supabase) Live Sync
+                    </h4>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                      isSupabaseConfigured()
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${isSupabaseConfigured() ? 'bg-emerald-600 animate-pulse' : 'bg-amber-500'}`} />
+                    {isSupabaseConfigured() ? 'Connected to Cloud DB' : 'Local Storage Mode'}
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Supabase Project URL
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://your-project.supabase.co"
+                      value={supabaseUrlInput}
+                      onChange={(e) => setSupabaseUrlInput(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Supabase Anon Public Key
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                      value={supabaseKeyInput}
+                      onChange={(e) => setSupabaseKeyInput(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900"
+                    />
+                  </div>
+
+                  {dbTestResult && (
+                    <div
+                      className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                        dbTestResult.success
+                          ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-900 border border-rose-200'
+                      }`}
+                    >
+                      {dbTestResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      )}
+                      <span>{dbTestResult.message}</span>
+                    </div>
+                  )}
+
+                  {syncAllMsg && (
+                    <div className="p-3 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-xl text-xs flex items-center gap-2">
+                      <Cloud className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{syncAllMsg}</span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleTestAndSaveDb}
+                      disabled={testingDb}
+                      className="bg-slate-900 hover:bg-slate-800 text-emerald-400 font-heading font-bold text-xs px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                    >
+                      {testingDb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                      <span>{testingDb ? 'Testing Connection...' : 'Test & Connect Cloud DB'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handlePushLocalCatalogToCloud}
+                      disabled={syncingAll || !isSupabaseConfigured()}
+                      className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-heading font-bold text-xs px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                    >
+                      {syncingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Cloud className="w-3.5 h-3.5" />}
+                      <span>Push All Products to Supabase</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
