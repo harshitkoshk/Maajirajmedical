@@ -1,6 +1,18 @@
 import { Product, Category, Order, ShopSettings } from '../types';
 import { INITIAL_PRODUCTS } from '../data/initialProducts';
 import { INITIAL_CATEGORIES } from '../data/categories';
+import {
+  isSupabaseConfigured,
+  fetchProductsSupabase,
+  upsertProductSupabase,
+  deleteProductSupabase,
+  fetchOrdersSupabase,
+  insertOrderSupabase,
+  updateOrderStatusSupabase,
+  fetchSettingsSupabase,
+  saveSettingsSupabase,
+  supabase
+} from './supabase';
 
 const PRODUCTS_KEY = 'mrmc_products_v1';
 const CATEGORIES_KEY = 'mrmc_categories_v1';
@@ -28,6 +40,61 @@ const notifyChange = (event: string) => {
   window.dispatchEvent(new CustomEvent('mrmc_storage_updated', { detail: { event } }));
 };
 
+// ==========================================
+// BACKGROUND CLOUD SYNC
+// ==========================================
+export const syncFromSupabase = async () => {
+  if (!isSupabaseConfigured()) return;
+
+  try {
+    // 1. Sync Settings (including admin PIN)
+    const remoteSettings = await fetchSettingsSupabase();
+    if (remoteSettings) {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(remoteSettings));
+      notifyChange('settings');
+    }
+
+    // 2. Sync Products
+    const remoteProducts = await fetchProductsSupabase();
+    if (remoteProducts && remoteProducts.length > 0) {
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(remoteProducts));
+      notifyChange('products');
+    }
+
+    // 3. Sync Orders
+    const remoteOrders = await fetchOrdersSupabase();
+    if (remoteOrders && remoteOrders.length > 0) {
+      localStorage.setItem(ORDERS_KEY, JSON.stringify(remoteOrders));
+      notifyChange('orders');
+    }
+  } catch (err) {
+    console.warn('Sync from Supabase notice:', err);
+  }
+};
+
+// Setup Realtime listener if Supabase is connected
+if (typeof window !== 'undefined' && isSupabaseConfigured() && supabase) {
+  // Initial sync on app boot
+  syncFromSupabase();
+
+  try {
+    supabase
+      .channel('mrmc_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        syncFromSupabase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        syncFromSupabase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_settings' }, () => {
+        syncFromSupabase();
+      })
+      .subscribe();
+  } catch (e) {
+    console.warn('Supabase realtime subscription notice:', e);
+  }
+}
+
 // PRODUCTS
 export const getProducts = (): Product[] => {
   try {
@@ -48,14 +115,22 @@ export const saveProduct = (product: Product): void => {
   const index = products.findIndex((p) => p.id === product.id);
   const now = new Date().toISOString();
 
+  let finalProduct: Product;
   if (index >= 0) {
-    products[index] = { ...product, updatedAt: now };
+    finalProduct = { ...product, updatedAt: now };
+    products[index] = finalProduct;
   } else {
-    products.unshift({ ...product, createdAt: now, updatedAt: now });
+    finalProduct = { ...product, createdAt: now, updatedAt: now };
+    products.unshift(finalProduct);
   }
 
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
   notifyChange('products');
+
+  // Cloud sync
+  if (isSupabaseConfigured()) {
+    upsertProductSupabase(finalProduct);
+  }
 };
 
 export const updateProductStock = (productId: string, newStock: number): void => {
@@ -67,6 +142,11 @@ export const updateProductStock = (productId: string, newStock: number): void =>
     product.updatedAt = new Date().toISOString();
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
     notifyChange('products');
+
+    // Cloud sync
+    if (isSupabaseConfigured()) {
+      upsertProductSupabase(product);
+    }
   }
 };
 
@@ -78,6 +158,11 @@ export const updateProductPrice = (productId: string, newPrice: number): void =>
     product.updatedAt = new Date().toISOString();
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
     notifyChange('products');
+
+    // Cloud sync
+    if (isSupabaseConfigured()) {
+      upsertProductSupabase(product);
+    }
   }
 };
 
@@ -85,6 +170,11 @@ export const deleteProduct = (productId: string): void => {
   const products = getProducts().filter((p) => p.id !== productId);
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
   notifyChange('products');
+
+  // Cloud sync
+  if (isSupabaseConfigured()) {
+    deleteProductSupabase(productId);
+  }
 };
 
 export const bulkImportProducts = (
@@ -99,11 +189,13 @@ export const bulkImportProducts = (
   if (mode === 'replace') {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(newProducts));
     notifyChange('products');
+    if (isSupabaseConfigured()) {
+      newProducts.forEach((p) => upsertProductSupabase(p));
+    }
     return { imported: newProducts.length, updated: 0, skipped: 0 };
   }
 
   newProducts.forEach((newP) => {
-    // Match by SKU or exact item name
     const existingIndex = products.findIndex(
       (p) =>
         (newP.sku && p.sku.toLowerCase() === newP.sku.toLowerCase()) ||
@@ -121,16 +213,23 @@ export const bulkImportProducts = (
           subcategory: newP.subcategory || products[existingIndex].subcategory,
           updatedAt: new Date().toISOString()
         };
+        if (isSupabaseConfigured()) {
+          upsertProductSupabase(products[existingIndex]);
+        }
         updated++;
       } else {
         skipped++;
       }
     } else {
-      products.unshift({
+      const createdItem = {
         ...newP,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      });
+      };
+      products.unshift(createdItem);
+      if (isSupabaseConfigured()) {
+        upsertProductSupabase(createdItem);
+      }
       imported++;
     }
   });
@@ -188,12 +287,20 @@ export const saveOrder = (order: Order): void => {
     if (p) {
       p.stock = Math.max(0, p.stock - item.quantity);
       p.isAvailable = p.stock > 0;
+      if (isSupabaseConfigured()) {
+        upsertProductSupabase(p);
+      }
     }
   });
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
 
   notifyChange('orders');
   notifyChange('products');
+
+  // Cloud sync
+  if (isSupabaseConfigured()) {
+    insertOrderSupabase(order);
+  }
 };
 
 export const updateOrderStatus = (orderId: string, status: Order['status']): void => {
@@ -204,6 +311,11 @@ export const updateOrderStatus = (orderId: string, status: Order['status']): voi
     order.updatedAt = new Date().toISOString();
     localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
     notifyChange('orders');
+
+    // Cloud sync
+    if (isSupabaseConfigured()) {
+      updateOrderStatusSupabase(orderId, status);
+    }
   }
 };
 
@@ -224,6 +336,11 @@ export const getSettings = (): ShopSettings => {
 export const saveSettings = (settings: ShopSettings): void => {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   notifyChange('settings');
+
+  // Cloud sync
+  if (isSupabaseConfigured()) {
+    saveSettingsSupabase(settings);
+  }
 };
 
 // ADMIN AUTH

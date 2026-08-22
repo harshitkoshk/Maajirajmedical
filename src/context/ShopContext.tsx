@@ -15,7 +15,8 @@ import {
   saveSettings,
   getAdminAuth,
   setAdminAuth,
-  resetToSeedData
+  resetToSeedData,
+  syncFromSupabase
 } from '../services/storage';
 
 export const INITIAL_FILTER_STATE: FilterState = {
@@ -113,6 +114,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    // Pull latest data from Supabase cloud database on boot
+    syncFromSupabase();
+
     const handleUrlChange = () => {
       const currentTab = getTabFromUrl();
       setActiveTabState(currentTab);

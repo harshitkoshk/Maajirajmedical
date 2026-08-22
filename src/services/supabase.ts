@@ -1,20 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
 import { Product, Order, ShopSettings, Category } from '../types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Read environment variables or fallback
+const supabaseUrl =
+  import.meta.env.VITE_SUPABASE_URL ||
+  (typeof window !== 'undefined' && (window as any).__SUPABASE_URL__) ||
+  '';
+const supabaseAnonKey =
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  (typeof window !== 'undefined' && (window as any).__SUPABASE_KEY__) ||
+  '';
 
 export const isSupabaseConfigured = (): boolean => {
   return Boolean(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('https://'));
 };
 
 export const supabase = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: true },
+      realtime: { params: { eventsPerSecond: 10 } }
+    })
   : null;
 
-// SUPABASE API METHODS
+// ==========================================
+// SUPABASE CLOUD API METHODS
+// ==========================================
 
-// Products
+// 1. PRODUCTS
 export const fetchProductsSupabase = async (): Promise<Product[] | null> => {
   if (!supabase) return null;
   try {
@@ -24,7 +36,7 @@ export const fetchProductsSupabase = async (): Promise<Product[] | null> => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    if (!data) return [];
+    if (!data || data.length === 0) return null;
 
     return data.map((row: any) => ({
       id: row.id,
@@ -49,7 +61,7 @@ export const fetchProductsSupabase = async (): Promise<Product[] | null> => {
       updatedAt: row.updated_at
     }));
   } catch (err) {
-    console.error('Supabase fetch products error:', err);
+    console.warn('Supabase fetch products notice:', err);
     return null;
   }
 };
@@ -100,7 +112,7 @@ export const deleteProductSupabase = async (productId: string): Promise<boolean>
   }
 };
 
-// Orders
+// 2. ORDERS
 export const fetchOrdersSupabase = async (): Promise<Order[] | null> => {
   if (!supabase) return null;
   try {
@@ -176,6 +188,68 @@ export const updateOrderStatusSupabase = async (orderId: string, status: string)
     return true;
   } catch (err) {
     console.error('Supabase update order status error:', err);
+    return false;
+  }
+};
+
+// 3. SETTINGS
+export const fetchSettingsSupabase = async (): Promise<ShopSettings | null> => {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('shop_settings')
+      .select('*')
+      .eq('id', 'primary')
+      .single();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    return {
+      shopName: data.shop_name,
+      ownerName: data.owner_name,
+      phone: data.phone,
+      whatsappNumber: data.whatsapp_number,
+      address: data.address,
+      originLat: Number(data.origin_lat),
+      originLng: Number(data.origin_lng),
+      deliveryRadiusKm: Number(data.delivery_radius_km),
+      openingHours: data.opening_hours,
+      emergencyNotice: data.emergency_notice || '',
+      adminPin: data.admin_pin,
+      googleMapsUrl: data.google_maps_url || ''
+    };
+  } catch (err) {
+    console.warn('Supabase fetch settings notice:', err);
+    return null;
+  }
+};
+
+export const saveSettingsSupabase = async (settings: ShopSettings): Promise<boolean> => {
+  if (!supabase) return false;
+  try {
+    const row = {
+      id: 'primary',
+      shop_name: settings.shopName,
+      owner_name: settings.ownerName,
+      phone: settings.phone,
+      whatsapp_number: settings.whatsappNumber,
+      address: settings.address,
+      origin_lat: settings.originLat,
+      origin_lng: settings.originLng,
+      delivery_radius_km: settings.deliveryRadiusKm,
+      opening_hours: settings.openingHours,
+      emergency_notice: settings.emergencyNotice,
+      admin_pin: settings.adminPin,
+      google_maps_url: settings.googleMapsUrl,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('shop_settings').upsert(row);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Supabase save settings error:', err);
     return false;
   }
 };
