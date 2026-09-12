@@ -136,6 +136,10 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ isOpen, onClos
             const batchKey = keys.find((k) => /batch|lot|bch/i.test(k));
             const rawBatch = batchKey ? String(row[batchKey]).trim() : `BCH-${100 + index}`;
 
+            // Expiry Date
+            const expKey = keys.find((k) => /exp|expiry|validi/i.test(k));
+            const rawExp = expKey ? String(row[expKey]).trim() : '';
+
             // Category
             const catKey = keys.find((k) => /category|type|dept/i.test(k));
             const rawCat = catKey ? String(row[catKey]).trim() : '';
@@ -169,6 +173,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ isOpen, onClos
                   ? 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=600&auto=format&fit=crop&q=80'
                   : 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
               batchNumber: rawBatch,
+              expiryDate: rawExp || undefined,
               dosageForm: 'Standard',
               packSize: 'Standard Pack',
               createdAt: new Date().toISOString(),

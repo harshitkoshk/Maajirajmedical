@@ -139,6 +139,7 @@ export const fetchProductsSupabase = async (): Promise<Product[] | null> => {
       discountPercent: row.discount_percent ? Number(row.discount_percent) : 0,
       image: row.image || '',
       batchNumber: row.batch_number || '',
+      expiryDate: row.expiry_date || undefined,
       dosageForm: row.dosage_form || '',
       packSize: row.pack_size || '',
       createdAt: row.created_at,
@@ -171,6 +172,7 @@ export const upsertProductSupabase = async (product: Product): Promise<boolean> 
       discount_percent: product.discountPercent,
       image: product.image,
       batch_number: product.batchNumber,
+      expiry_date: product.expiryDate || null,
       dosage_form: product.dosageForm,
       pack_size: product.packSize,
       updated_at: new Date().toISOString()
@@ -277,6 +279,99 @@ export const updateOrderStatusSupabase = async (orderId: string, status: string)
     return true;
   } catch (err) {
     console.error('Supabase update order status error:', err);
+    return false;
+  }
+};
+
+export const deleteOrderSupabase = async (orderId: string): Promise<boolean> => {
+  const client = getSupabaseClient();
+  if (!client) return false;
+  try {
+    const { error } = await client.from('orders').delete().eq('id', orderId);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Supabase delete order error:', err);
+    return false;
+  }
+};
+
+// 3. BILLS / CASH MEMOS
+export const fetchBillsSupabase = async (): Promise<any[] | null> => {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  try {
+    const { data, error } = await client
+      .from('bills')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    if (!data) return [];
+
+    return data.map((row: any) => ({
+      id: row.id,
+      billNumber: Number(row.bill_number),
+      billNumberPrefix: row.bill_number_prefix || 'M - ',
+      date: row.date,
+      customerName: row.customer_name,
+      address: row.address || '',
+      mobileNumber: row.mobile_number || '',
+      doctorName: row.doctor_name || '',
+      items: typeof row.items === 'string' ? JSON.parse(row.items) : row.items || [],
+      subtotal: Number(row.subtotal),
+      discountTotal: Number(row.discount_total || 0),
+      grandTotal: Number(row.grand_total),
+      paymentMode: row.payment_mode || 'Cash',
+      notes: row.notes || '',
+      createdAt: row.created_at
+    }));
+  } catch (err) {
+    console.warn('Supabase fetch bills notice (table may be optional):', err);
+    return null;
+  }
+};
+
+export const upsertBillSupabase = async (bill: any): Promise<boolean> => {
+  const client = getSupabaseClient();
+  if (!client) return false;
+  try {
+    const row = {
+      id: bill.id,
+      bill_number: bill.billNumber,
+      bill_number_prefix: bill.billNumberPrefix,
+      date: bill.date,
+      customer_name: bill.customerName,
+      address: bill.address,
+      mobile_number: bill.mobileNumber,
+      doctor_name: bill.doctorName,
+      items: bill.items,
+      subtotal: bill.subtotal,
+      discount_total: bill.discountTotal,
+      grand_total: bill.grandTotal,
+      payment_mode: bill.paymentMode,
+      notes: bill.notes,
+      created_at: bill.createdAt
+    };
+
+    const { error } = await client.from('bills').upsert(row);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('Supabase upsert bill notice:', err);
+    return false;
+  }
+};
+
+export const deleteBillSupabase = async (billId: string): Promise<boolean> => {
+  const client = getSupabaseClient();
+  if (!client) return false;
+  try {
+    const { error } = await client.from('bills').delete().eq('id', billId);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('Supabase delete bill notice:', err);
     return false;
   }
 };

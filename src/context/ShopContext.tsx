@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, Category, Order, ShopSettings, FilterState } from '../types';
+import { Product, Category, Order, ShopSettings, FilterState, Bill } from '../types';
 import {
   getProducts,
   saveProduct,
@@ -11,6 +11,12 @@ import {
   getOrders,
   saveOrder,
   updateOrderStatus,
+  deleteOrder,
+  getBills,
+  saveBill,
+  deleteBill,
+  getNextBillNumber,
+  setNextBillNumber,
   getSettings,
   saveSettings,
   getAdminAuth,
@@ -51,6 +57,7 @@ interface ShopContextType {
   products: Product[];
   categories: Category[];
   orders: Order[];
+  bills: Bill[];
   settings: ShopSettings;
   isAdmin: boolean;
   setIsAdmin: (val: boolean) => void;
@@ -72,6 +79,12 @@ interface ShopContextType {
   // Order actions
   createOrder: (order: Order) => void;
   updateStatus: (orderId: string, status: Order['status']) => void;
+  deleteOrderById: (orderId: string) => void;
+  // Bill / POS actions
+  createBill: (bill: Bill) => void;
+  deleteBillById: (billId: string, restoreStock?: boolean) => void;
+  nextBillNumber: number;
+  updateNextBillNumber: (num: number) => void;
   // Settings actions
   updateShopSettings: (settings: ShopSettings) => void;
   resetAllData: () => void;
@@ -85,6 +98,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [products, setProducts] = useState<Product[]>(getProducts);
   const [categories, setCategories] = useState<Category[]>(getCategories);
   const [orders, setOrders] = useState<Order[]>(getOrders);
+  const [bills, setBills] = useState<Bill[]>(getBills);
+  const [nextBillNumber, setNextBillNumberState] = useState<number>(getNextBillNumber);
   const [settings, setSettings] = useState<ShopSettings>(getSettings);
   const [isAdmin, setIsAdminState] = useState<boolean>(getAdminAuth);
   const [activeTab, setActiveTabState] = useState<string>(getTabFromUrl);
@@ -109,6 +124,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProducts(getProducts());
     setCategories(getCategories());
     setOrders(getOrders());
+    setBills(getBills());
+    setNextBillNumberState(getNextBillNumber());
     setSettings(getSettings());
     setIsAdminState(getAdminAuth());
   };
@@ -200,6 +217,26 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     reloadData();
   };
 
+  const deleteOrderById = (orderId: string) => {
+    deleteOrder(orderId);
+    reloadData();
+  };
+
+  const createBill = (bill: Bill) => {
+    saveBill(bill);
+    reloadData();
+  };
+
+  const deleteBillById = (billId: string, restoreStock: boolean = false) => {
+    deleteBill(billId, restoreStock);
+    reloadData();
+  };
+
+  const updateNextBillNumber = (num: number) => {
+    setNextBillNumber(num);
+    reloadData();
+  };
+
   const updateShopSettings = (newSettings: ShopSettings) => {
     saveSettings(newSettings);
     reloadData();
@@ -216,6 +253,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         products,
         categories,
         orders,
+        bills,
         settings,
         isAdmin,
         setIsAdmin,
@@ -232,6 +270,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         importBulk,
         createOrder,
         updateStatus,
+        deleteOrderById,
+        createBill,
+        deleteBillById,
+        nextBillNumber,
+        updateNextBillNumber,
         updateShopSettings,
         resetAllData,
         navigateWithCategory
@@ -249,3 +292,4 @@ export const useShop = () => {
   }
   return context;
 };
+

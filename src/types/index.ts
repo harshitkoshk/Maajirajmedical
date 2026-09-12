@@ -28,11 +28,15 @@ export interface Product {
   discountPercent?: number;
   image: string;
   batchNumber?: string; // Stored securely for admin use only
+  expiryDate?: string; // e.g. YYYY-MM-DD or MM/YY
   dosageForm?: string;
   packSize?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ExpiryStatus = 'expired' | 'expiring_soon' | 'valid' | 'none';
+
 
 export interface CartItem {
   product: Product;
@@ -104,3 +108,36 @@ export type FilterState = {
   maxPrice: number;
   sortBy: 'featured' | 'price-asc' | 'price-desc' | 'name-asc' | 'newest';
 };
+
+export interface BillItem {
+  productId?: string;
+  name: string;
+  batch?: string;
+  expDate?: string;
+  qty: number;
+  mrp: number;
+  discountPercent?: number;
+  amount: number;
+}
+
+export type PaymentMode = 'Cash' | 'UPI' | 'Card' | 'Credit' | 'Other';
+
+export interface Bill {
+  id: string;
+  billNumber: number; // e.g. 2000, 2001
+  billNumberPrefix: string; // "M - "
+  date: string; // YYYY-MM-DD or formatted
+  customerName: string;
+  address: string;
+  mobileNumber: string;
+  doctorName: string;
+  items: BillItem[];
+  subtotal: number;
+  discountTotal: number;
+  grandTotal: number;
+  paymentMode: PaymentMode;
+  notes?: string;
+  orderId?: string; // Reference if bill was generated from online website order
+  createdAt: string;
+}
+

@@ -25,11 +25,15 @@ CREATE TABLE IF NOT EXISTS public.products (
     discount_percent INTEGER DEFAULT 0,
     image TEXT,
     batch_number TEXT,
+    expiry_date DATE,
     dosage_form TEXT,
     pack_size TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Safe column add if migrating existing tables
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS expiry_date DATE;
 
 -- 3. CATEGORIES TABLE
 CREATE TABLE IF NOT EXISTS public.categories (

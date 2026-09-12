@@ -14,6 +14,7 @@ import {
   Sparkles,
   Info
 } from 'lucide-react';
+import { getExpiryInfo } from '../../utils/expiry';
 
 export const ProductDetailModal: React.FC = () => {
   const { selectedProductForDetail, setSelectedProductForDetail, addToCart, setIsCartOpen } = useCart();
@@ -131,15 +132,27 @@ export const ProductDetailModal: React.FC = () => {
               <span className="text-xs text-slate-500">Inclusive of all taxes</span>
             </div>
 
-            {/* Pack Size & Dosage */}
-            {(product.packSize || product.dosageForm) && (
-              <div className="mt-2 inline-flex items-center gap-2 bg-slate-100 px-2.5 py-1 rounded-md text-xs text-slate-700">
-                <Info className="w-3.5 h-3.5 text-slate-500" />
-                <span>
-                  {product.packSize && `Pack: ${product.packSize}`}
-                  {product.packSize && product.dosageForm && ' | '}
-                  {product.dosageForm && `Form: ${product.dosageForm}`}
-                </span>
+            {/* Pack Size, Dosage & Expiry Info */}
+            {(product.packSize || product.dosageForm || product.expiryDate) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {(product.packSize || product.dosageForm) && (
+                  <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-md text-xs text-slate-700">
+                    <Info className="w-3.5 h-3.5 text-slate-500" />
+                    <span>
+                      {product.packSize && `Pack: ${product.packSize}`}
+                      {product.packSize && product.dosageForm && ' | '}
+                      {product.dosageForm && `Form: ${product.dosageForm}`}
+                    </span>
+                  </div>
+                )}
+                {product.expiryDate && (() => {
+                  const expInfo = getExpiryInfo(product.expiryDate);
+                  return (
+                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-md text-xs text-emerald-900 font-medium">
+                      <span>Exp: {expInfo.formattedDate}</span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

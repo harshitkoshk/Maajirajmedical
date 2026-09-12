@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../../types';
 import { useShop } from '../../context/ShopContext';
-import { X, Save, Plus, Sparkles, ShieldAlert, Image, Layers } from 'lucide-react';
+import { X, Save, Plus, Sparkles, ShieldAlert, Image, Layers, Calendar, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { getExpiryInfo, getPresetExpiryDate } from '../../utils/expiry';
 
 interface AdminProductModalProps {
   productToEdit: Product | null;
@@ -31,13 +32,14 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
     discountPercent: 0,
     image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
     batchNumber: '',
+    expiryDate: '',
     dosageForm: 'Tablets',
     packSize: 'Strip of 10'
   });
 
   useEffect(() => {
     if (productToEdit) {
-      setFormData({ ...productToEdit });
+      setFormData({ ...productToEdit, expiryDate: productToEdit.expiryDate || '' });
     } else {
       setFormData({
         name: '',
@@ -54,6 +56,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
         discountPercent: 0,
         image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
         batchNumber: `BCH-${Math.floor(100 + Math.random() * 900)}`,
+        expiryDate: getPresetExpiryDate(12),
         dosageForm: 'Tablets',
         packSize: 'Pack of 1'
       });
@@ -74,6 +77,8 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       subcategory: catObj && catObj.subcategories.length > 0 ? catObj.subcategories[0] : 'General'
     }));
   };
+
+  const expiryInfo = getExpiryInfo(formData.expiryDate);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +114,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
         formData.image?.trim() ||
         'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
       batchNumber: formData.batchNumber?.trim() || 'BCH-GEN-2024',
+      expiryDate: formData.expiryDate?.trim() || undefined,
       dosageForm: formData.dosageForm?.trim() || '',
       packSize: formData.packSize?.trim() || '',
       createdAt: productToEdit ? productToEdit.createdAt : new Date().toISOString(),
@@ -268,8 +274,8 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
             </div>
           </div>
 
-          {/* Row 4: Pack Size, Dosage Form & Admin Batch Number */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Row 4: Pack Size & Dosage Form */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Pack Size
@@ -295,18 +301,103 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span>Batch # (Admin Only)</span>
-              </label>
-              <input
-                type="text"
-                value={formData.batchNumber || ''}
-                onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
-                placeholder="e.g. BCH-CFX-2024"
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
+          {/* Row 5: Batch Number & Expiry Date Management */}
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Batch # (Admin)</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.batchNumber || ''}
+                  onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
+                  placeholder="e.g. BCH-CFX-2024"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Expiry Date</span>
+                  </span>
+                  {formData.expiryDate && (
+                    <span className="text-[10px] text-slate-400 font-normal">YYYY-MM-DD</span>
+                  )}
+                </label>
+                <input
+                  type="date"
+                  value={formData.expiryDate || ''}
+                  onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Quick Expiry Date Preset Buttons & Live Preview Status */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/60 text-[11px]">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-slate-500 font-semibold text-[10px]">Quick Presets:</span>
+                {[
+                  { label: '+3M', months: 3 },
+                  { label: '+6M', months: 6 },
+                  { label: '+1 Year', months: 12 },
+                  { label: '+2 Years', months: 24 },
+                  { label: '+3 Years', months: 36 }
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        expiryDate: getPresetExpiryDate(preset.months)
+                      }))
+                    }
+                    className="px-2 py-0.5 rounded-lg bg-white hover:bg-emerald-50 hover:text-emerald-800 text-slate-600 border border-slate-200 transition-colors font-medium text-[10px]"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Real-time Expiry Feedback / Notification */}
+              {formData.expiryDate ? (
+                <div
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] ${
+                    expiryInfo.isExpired
+                      ? 'bg-rose-100 text-rose-800 font-bold border border-rose-200 animate-pulse'
+                      : expiryInfo.isExpiringSoon
+                      ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300'
+                      : 'bg-emerald-100 text-emerald-900 font-semibold border border-emerald-200'
+                  }`}
+                >
+                  {expiryInfo.isExpired ? (
+                    <>
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                      <span>🚨 Item Expired ({expiryInfo.formattedDate})</span>
+                    </>
+                  ) : expiryInfo.isExpiringSoon ? (
+                    <>
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      <span>⚠️ Expiring Soon ({expiryInfo.daysRemaining} days left)</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Valid until {expiryInfo.formattedDate} ({expiryInfo.daysRemaining}d left)</span>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <span className="text-[10px] text-slate-400 italic">
+                  Tip: Set expiry date to receive automatic alerts
+                </span>
+              )}
             </div>
           </div>
 

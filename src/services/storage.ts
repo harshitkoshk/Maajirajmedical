@@ -1,4 +1,4 @@
-import { Product, Category, Order, ShopSettings } from '../types';
+import { Product, Category, Order, ShopSettings, Bill } from '../types';
 import { INITIAL_PRODUCTS } from '../data/initialProducts';
 import { INITIAL_CATEGORIES } from '../data/categories';
 import {
@@ -9,6 +9,10 @@ import {
   fetchOrdersSupabase,
   insertOrderSupabase,
   updateOrderStatusSupabase,
+  deleteOrderSupabase,
+  fetchBillsSupabase,
+  upsertBillSupabase,
+  deleteBillSupabase,
   fetchSettingsSupabase,
   saveSettingsSupabase,
   supabase
@@ -17,6 +21,8 @@ import {
 const PRODUCTS_KEY = 'mrmc_products_v1';
 const CATEGORIES_KEY = 'mrmc_categories_v1';
 const ORDERS_KEY = 'mrmc_orders_v1';
+const BILLS_KEY = 'mrmc_bills_v1';
+const NEXT_BILL_NUM_KEY = 'mrmc_next_bill_num_v1';
 const SETTINGS_KEY = 'mrmc_settings_v1';
 const ADMIN_AUTH_KEY = 'mrmc_admin_auth_v1';
 
@@ -69,6 +75,13 @@ export const syncFromSupabase = async () => {
       localStorage.setItem(ORDERS_KEY, JSON.stringify(remoteOrders));
       notifyChange('orders');
     }
+
+    // 4. Sync Bills
+    const remoteBills = await fetchBillsSupabase();
+    if (remoteBills && remoteBills.length > 0) {
+      localStorage.setItem(BILLS_KEY, JSON.stringify(remoteBills));
+      notifyChange('bills');
+    }
   } catch (err) {
     console.warn('Sync from Supabase notice:', err);
   }
@@ -105,7 +118,28 @@ export const getProducts = (): Product[] => {
       localStorage.setItem(PRODUCTS_KEY, JSON.stringify(INITIAL_PRODUCTS));
       return INITIAL_PRODUCTS;
     }
-    return JSON.parse(raw);
+    const parsed: Product[] = JSON.parse(raw);
+    let modified = false;
+    const enriched = parsed.map((p, idx) => {
+      if (!p.expiryDate) {
+        const initMatch = INITIAL_PRODUCTS.find((init) => init.id === p.id);
+        if (initMatch && initMatch.expiryDate) {
+          modified = true;
+          return { ...p, expiryDate: initMatch.expiryDate };
+        } else {
+          modified = true;
+          const futureDate = new Date();
+          futureDate.setMonth(futureDate.getMonth() + (12 + (idx % 12)));
+          return { ...p, expiryDate: futureDate.toISOString().split('T')[0] };
+        }
+      }
+      return p;
+    });
+
+    if (modified) {
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(enriched));
+    }
+    return enriched;
   } catch (err) {
     console.error('Failed to get products:', err);
     return INITIAL_PRODUCTS;
@@ -320,6 +354,153 @@ export const updateOrderStatus = (orderId: string, status: Order['status']): voi
     }
   }
 };
+
+export const deleteOrder = (orderId: string): void => {
+  const orders = getOrders().filter((o) => o.id !== orderId);
+  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+  notifyChange('orders');
+
+  // Cloud sync
+  if (isSupabaseConfigured()) {
+    deleteOrderSupabase(orderId);
+  }
+};
+
+// BILLS / CASH MEMOS
+export const getBills = (): Bill[] => {
+  try {
+    const raw = localStorage.getItem(BILLS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    return [];
+  }
+};
+
+export const getNextBillNumber = (): number => {
+  try {
+    const raw = localStorage.getItem(NEXT_BILL_NUM_KEY);
+    if (raw) {
+      const num = parseInt(raw, 10);
+      if (!isNaN(num) && num > 0) return num;
+    }
+    const bills = getBills();
+    if (bills.length > 0) {
+      const maxNum = Math.max(...bills.map((b) => b.billNumber || 0));
+      return Math.max(2000, maxNum + 1);
+    }
+    return 2000;
+  } catch (err) {
+    return 2000;
+  }
+};
+
+export const setNextBillNumber = (num: number): void => {
+  localStorage.setItem(NEXT_BILL_NUM_KEY, num.toString());
+  notifyChange('bills');
+};
+
+export const saveBill = (bill: Bill): void => {
+  const bills = getBills();
+  const index = bills.findIndex((b) => b.id === bill.id);
+
+  if (index >= 0) {
+    bills[index] = bill;
+  } else {
+    bills.unshift(bill);
+    // Update next bill number
+    const nextNum = Math.max(bill.billNumber + 1, getNextBillNumber());
+    localStorage.setItem(NEXT_BILL_NUM_KEY, nextNum.toString());
+
+    // Deduct stock for items in the bill (if not already deducted by website order)
+    if (!bill.orderId) {
+      const products = getProducts();
+      let productUpdated = false;
+
+      bill.items.forEach((item) => {
+        if (item.productId) {
+          const p = products.find((prod) => prod.id === item.productId);
+          if (p) {
+            p.stock = Math.max(0, p.stock - (item.qty || 1));
+            p.isAvailable = p.stock > 0;
+            p.updatedAt = new Date().toISOString();
+            productUpdated = true;
+            if (isSupabaseConfigured()) {
+              upsertProductSupabase(p);
+            }
+          }
+        } else {
+          // Match by exact name if productId not specified
+          const p = products.find(
+            (prod) => prod.name.trim().toLowerCase() === item.name.trim().toLowerCase()
+          );
+          if (p) {
+            p.stock = Math.max(0, p.stock - (item.qty || 1));
+            p.isAvailable = p.stock > 0;
+            p.updatedAt = new Date().toISOString();
+            productUpdated = true;
+            if (isSupabaseConfigured()) {
+              upsertProductSupabase(p);
+            }
+          }
+        }
+      });
+
+      if (productUpdated) {
+        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+        notifyChange('products');
+      }
+    }
+  }
+
+  localStorage.setItem(BILLS_KEY, JSON.stringify(bills));
+  notifyChange('bills');
+
+  // Cloud sync
+  if (isSupabaseConfigured()) {
+    upsertBillSupabase(bill);
+  }
+};
+
+export const deleteBill = (billId: string, restoreStock: boolean = false): void => {
+  const bills = getBills();
+  const billToDelete = bills.find((b) => b.id === billId);
+
+  if (restoreStock && billToDelete) {
+    const products = getProducts();
+    let productUpdated = false;
+
+    billToDelete.items.forEach((item) => {
+      const p = products.find(
+        (prod) =>
+          (item.productId && prod.id === item.productId) ||
+          prod.name.trim().toLowerCase() === item.name.trim().toLowerCase()
+      );
+      if (p) {
+        p.stock = p.stock + (item.qty || 1);
+        p.isAvailable = p.stock > 0;
+        p.updatedAt = new Date().toISOString();
+        productUpdated = true;
+        if (isSupabaseConfigured()) {
+          upsertProductSupabase(p);
+        }
+      }
+    });
+
+    if (productUpdated) {
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+      notifyChange('products');
+    }
+  }
+
+  const updatedBills = bills.filter((b) => b.id !== billId);
+  localStorage.setItem(BILLS_KEY, JSON.stringify(updatedBills));
+  notifyChange('bills');
+
+  if (isSupabaseConfigured()) {
+    deleteBillSupabase(billId);
+  }
+};
+
 
 // SETTINGS
 export const getSettings = (): ShopSettings => {
