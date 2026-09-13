@@ -155,34 +155,48 @@ export const upsertProductSupabase = async (product: Product): Promise<boolean> 
   const client = getSupabaseClient();
   if (!client) return false;
   try {
-    const row = {
+    const row: Record<string, any> = {
       id: product.id,
-      sku: product.sku,
+      sku: product.sku || '',
       name: product.name,
-      brand: product.brand,
+      brand: product.brand || '',
       category: product.category,
-      subcategory: product.subcategory,
-      description: product.description,
-      price: product.price,
-      mrp: product.mrp,
-      stock: product.stock,
-      is_available: product.isAvailable,
-      is_prescription_required: product.isPrescriptionRequired,
-      is_featured: product.isFeatured,
-      discount_percent: product.discountPercent,
-      image: product.image,
-      batch_number: product.batchNumber,
-      expiry_date: product.expiryDate || null,
-      dosage_form: product.dosageForm,
-      pack_size: product.packSize,
+      subcategory: product.subcategory || '',
+      description: product.description || '',
+      price: Number(product.price) || 0,
+      mrp: product.mrp ? Number(product.mrp) : undefined,
+      stock: Number(product.stock) || 0,
+      is_available: product.isAvailable !== undefined ? product.isAvailable : true,
+      is_prescription_required: Boolean(product.isPrescriptionRequired),
+      is_featured: Boolean(product.isFeatured),
+      discount_percent: Number(product.discountPercent) || 0,
+      image: product.image || '',
+      batch_number: product.batchNumber || '',
+      dosage_form: product.dosageForm || '',
+      pack_size: product.packSize || '',
       updated_at: new Date().toISOString()
     };
 
-    const { error } = await client.from('products').upsert(row);
-    if (error) throw error;
+    if (product.expiryDate) {
+      row.expiry_date = product.expiryDate;
+    }
+
+    let { error } = await client.from('products').upsert(row);
+
+    // If schema cache in Supabase doesn't have expiry_date column (PGRST204)
+    if (error && (error.code === 'PGRST204' || (error.message && error.message.includes('expiry_date')))) {
+      delete row.expiry_date;
+      const retryResult = await client.from('products').upsert(row);
+      error = retryResult.error;
+    }
+
+    if (error) {
+      console.error('Supabase upsert product error:', error);
+      return false;
+    }
     return true;
   } catch (err) {
-    console.error('Supabase upsert product error:', err);
+    console.error('Supabase upsert product catch error:', err);
     return false;
   }
 };

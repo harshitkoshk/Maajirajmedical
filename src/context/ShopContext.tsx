@@ -67,11 +67,11 @@ interface ShopContextType {
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
   resetFilters: () => void;
   // Product actions
-  addProduct: (product: Product) => void;
-  editProduct: (product: Product) => void;
-  deleteProductById: (id: string) => void;
-  setStock: (id: string, stock: number) => void;
-  setPrice: (id: string, price: number) => void;
+  addProduct: (product: Product) => Promise<boolean>;
+  editProduct: (product: Product) => Promise<boolean>;
+  deleteProductById: (id: string) => Promise<void>;
+  setStock: (id: string, stock: number) => Promise<void>;
+  setPrice: (id: string, price: number) => Promise<void>;
   importBulk: (
     items: Product[],
     mode: 'add' | 'upsert' | 'replace'
@@ -176,28 +176,30 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const addProduct = (product: Product) => {
-    saveProduct(product);
+  const addProduct = async (product: Product): Promise<boolean> => {
+    const success = await saveProduct(product);
+    reloadData();
+    return success;
+  };
+
+  const editProduct = async (product: Product): Promise<boolean> => {
+    const success = await saveProduct(product);
+    reloadData();
+    return success;
+  };
+
+  const deleteProductById = async (id: string): Promise<void> => {
+    await deleteProduct(id);
     reloadData();
   };
 
-  const editProduct = (product: Product) => {
-    saveProduct(product);
+  const setStock = async (id: string, stock: number): Promise<void> => {
+    await updateProductStock(id, stock);
     reloadData();
   };
 
-  const deleteProductById = (id: string) => {
-    deleteProduct(id);
-    reloadData();
-  };
-
-  const setStock = (id: string, stock: number) => {
-    updateProductStock(id, stock);
-    reloadData();
-  };
-
-  const setPrice = (id: string, price: number) => {
-    updateProductPrice(id, price);
+  const setPrice = async (id: string, price: number): Promise<void> => {
+    await updateProductPrice(id, price);
     reloadData();
   };
 

@@ -62,11 +62,53 @@ export const syncFromSupabase = async () => {
       notifyChange('settings');
     }
 
-    // 2. Sync Products
+    // 2. Sync Products (Smart two-way merge)
     const remoteProducts = await fetchProductsSupabase();
     if (remoteProducts && remoteProducts.length > 0) {
-      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(remoteProducts));
+      const localProducts = getProducts();
+      const mergedMap = new Map<string, Product>();
+
+      // Index remote products first
+      remoteProducts.forEach((p) => {
+        mergedMap.set(p.id, p);
+      });
+
+      const unpushedToRemote: Product[] = [];
+
+      // Check local products: preserve any newly added or locally modified items
+      localProducts.forEach((localP) => {
+        const remoteP = mergedMap.get(localP.id);
+        if (!remoteP) {
+          // Exists locally but not in Supabase yet -> preserve and push to cloud
+          mergedMap.set(localP.id, localP);
+          unpushedToRemote.push(localP);
+        } else {
+          // Preserve local expiry date if missing in remote
+          if (localP.expiryDate && !remoteP.expiryDate) {
+            remoteP.expiryDate = localP.expiryDate;
+          }
+          // If local modification is newer than remote, prefer local and update cloud
+          if (
+            localP.updatedAt &&
+            remoteP.updatedAt &&
+            new Date(localP.updatedAt).getTime() > new Date(remoteP.updatedAt).getTime()
+          ) {
+            mergedMap.set(localP.id, localP);
+            unpushedToRemote.push(localP);
+          }
+        }
+      });
+
+      const mergedProducts = Array.from(mergedMap.values());
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(mergedProducts));
       notifyChange('products');
+
+      // Asynchronously upload any un-pushed products to Supabase
+      if (unpushedToRemote.length > 0) {
+        Promise.all(unpushedToRemote.map((p) => upsertProductSupabase(p))).catch((err) =>
+          console.warn('Background push error:', err)
+        );
+      }
     }
 
     // 3. Sync Orders
@@ -146,7 +188,7 @@ export const getProducts = (): Product[] => {
   }
 };
 
-export const saveProduct = (product: Product): void => {
+export const saveProduct = async (product: Product): Promise<boolean> => {
   const products = getProducts();
   const index = products.findIndex((p) => p.id === product.id);
   const now = new Date().toISOString();
@@ -156,7 +198,7 @@ export const saveProduct = (product: Product): void => {
     finalProduct = { ...product, updatedAt: now };
     products[index] = finalProduct;
   } else {
-    finalProduct = { ...product, createdAt: now, updatedAt: now };
+    finalProduct = { ...product, createdAt: product.createdAt || now, updatedAt: now };
     products.unshift(finalProduct);
   }
 
@@ -165,11 +207,12 @@ export const saveProduct = (product: Product): void => {
 
   // Cloud sync
   if (isSupabaseConfigured()) {
-    upsertProductSupabase(finalProduct);
+    return await upsertProductSupabase(finalProduct);
   }
+  return true;
 };
 
-export const updateProductStock = (productId: string, newStock: number): void => {
+export const updateProductStock = async (productId: string, newStock: number): Promise<void> => {
   const products = getProducts();
   const product = products.find((p) => p.id === productId);
   if (product) {
@@ -181,12 +224,12 @@ export const updateProductStock = (productId: string, newStock: number): void =>
 
     // Cloud sync
     if (isSupabaseConfigured()) {
-      upsertProductSupabase(product);
+      await upsertProductSupabase(product);
     }
   }
 };
 
-export const updateProductPrice = (productId: string, newPrice: number): void => {
+export const updateProductPrice = async (productId: string, newPrice: number): Promise<void> => {
   const products = getProducts();
   const product = products.find((p) => p.id === productId);
   if (product) {
@@ -197,19 +240,19 @@ export const updateProductPrice = (productId: string, newPrice: number): void =>
 
     // Cloud sync
     if (isSupabaseConfigured()) {
-      upsertProductSupabase(product);
+      await upsertProductSupabase(product);
     }
   }
 };
 
-export const deleteProduct = (productId: string): void => {
+export const deleteProduct = async (productId: string): Promise<void> => {
   const products = getProducts().filter((p) => p.id !== productId);
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
   notifyChange('products');
 
   // Cloud sync
   if (isSupabaseConfigured()) {
-    deleteProductSupabase(productId);
+    await deleteProductSupabase(productId);
   }
 };
 

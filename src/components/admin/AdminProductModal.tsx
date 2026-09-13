@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../../types';
 import { useShop } from '../../context/ShopContext';
-import { X, Save, Plus, Sparkles, ShieldAlert, Image, Layers, Calendar, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { X, Save, Plus, Sparkles, ShieldAlert, Image, Layers, Calendar, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { getExpiryInfo, getPresetExpiryDate } from '../../utils/expiry';
 
 interface AdminProductModalProps {
@@ -16,6 +16,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
   onClose
 }) => {
   const { categories, addProduct, editProduct } = useShop();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Product>>({
     name: '',
@@ -80,7 +81,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
 
   const expiryInfo = getExpiryInfo(formData.expiryDate);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name?.trim()) {
@@ -88,46 +89,55 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       return;
     }
 
-    const priceNum = Number(formData.price) || 0;
-    const mrpNum = Number(formData.mrp) || priceNum;
-    const stockNum = Number(formData.stock) || 0;
+    setIsSubmitting(true);
 
-    const discountCalculated =
-      mrpNum > priceNum ? Math.round(((mrpNum - priceNum) / mrpNum) * 100) : 0;
+    try {
+      const priceNum = Number(formData.price) || 0;
+      const mrpNum = Number(formData.mrp) || priceNum;
+      const stockNum = Number(formData.stock) || 0;
 
-    const finalProduct: Product = {
-      id: productToEdit ? productToEdit.id : `prod-${Date.now()}`,
-      sku: formData.sku || `MRMC-${Math.floor(1000 + Math.random() * 9000)}`,
-      name: formData.name.trim(),
-      brand: formData.brand?.trim() || 'Maaji Raj Quality',
-      category: formData.category || 'Medicines',
-      subcategory: formData.subcategory || 'General',
-      description: formData.description?.trim() || '',
-      price: priceNum,
-      mrp: mrpNum,
-      stock: stockNum,
-      isAvailable: stockNum > 0,
-      isPrescriptionRequired: Boolean(formData.isPrescriptionRequired),
-      isFeatured: Boolean(formData.isFeatured),
-      discountPercent: discountCalculated,
-      image:
-        formData.image?.trim() ||
-        'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
-      batchNumber: formData.batchNumber?.trim() || 'BCH-GEN-2024',
-      expiryDate: formData.expiryDate?.trim() || undefined,
-      dosageForm: formData.dosageForm?.trim() || '',
-      packSize: formData.packSize?.trim() || '',
-      createdAt: productToEdit ? productToEdit.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+      const discountCalculated =
+        mrpNum > priceNum ? Math.round(((mrpNum - priceNum) / mrpNum) * 100) : 0;
 
-    if (productToEdit) {
-      editProduct(finalProduct);
-    } else {
-      addProduct(finalProduct);
+      const finalProduct: Product = {
+        id: productToEdit ? productToEdit.id : `prod-${Date.now()}`,
+        sku: formData.sku || `MRMC-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: formData.name.trim(),
+        brand: formData.brand?.trim() || 'Maaji Raj Quality',
+        category: formData.category || 'Medicines',
+        subcategory: formData.subcategory || 'General',
+        description: formData.description?.trim() || '',
+        price: priceNum,
+        mrp: mrpNum,
+        stock: stockNum,
+        isAvailable: stockNum > 0,
+        isPrescriptionRequired: Boolean(formData.isPrescriptionRequired),
+        isFeatured: Boolean(formData.isFeatured),
+        discountPercent: discountCalculated,
+        image:
+          formData.image?.trim() ||
+          'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&auto=format&fit=crop&q=80',
+        batchNumber: formData.batchNumber?.trim() || 'BCH-GEN-2024',
+        expiryDate: formData.expiryDate?.trim() || undefined,
+        dosageForm: formData.dosageForm?.trim() || '',
+        packSize: formData.packSize?.trim() || '',
+        createdAt: productToEdit ? productToEdit.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      if (productToEdit) {
+        await editProduct(finalProduct);
+      } else {
+        await addProduct(finalProduct);
+      }
+
+      onClose();
+    } catch (err) {
+      console.error('Failed to save product:', err);
+      alert('Failed to save product. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onClose();
   };
 
   return (
@@ -468,16 +478,27 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-heading font-bold text-xs shadow-md shadow-emerald-900/10 flex items-center gap-1.5 transition-all"
+              disabled={isSubmitting}
+              className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-heading font-bold text-xs shadow-md shadow-emerald-900/10 flex items-center gap-1.5 transition-all disabled:opacity-75"
             >
-              <Save className="w-4 h-4" />
-              <span>{productToEdit ? 'Save Changes' : 'Create & Publish Product'}</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving & Syncing...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>{productToEdit ? 'Save Changes' : 'Create & Publish Product'}</span>
+                </>
+              )}
             </button>
           </div>
         </form>
